@@ -1,5 +1,5 @@
 import './App.css'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef, useEffect } from 'react'
 import Card from './components/Card'
 import { Minimap } from './components/Minimap'
 import { useSyncNotes } from './hooks/useSyncNotes'
@@ -48,14 +48,33 @@ function App() {
     }
   }, [])
 
-  const handleUpdateNote = useCallback((updatedNote: Note) => {
-    // Only update zIndex if the note is being brought to front (zIndex is less than max)
-    if (updatedNote.zIndex < maxZIndex) {
-      upsertNote({ ...updatedNote, zIndex: maxZIndex + 1 })
-    } else {
-      upsertNote(updatedNote)
+  const handleUpdateNote = useCallback((updatedNote: Note, bringToFront = false): number => {
+    // Always ensure zIndex is present - use existing if not provided
+    const currentZIndex = updatedNote.zIndex ?? Object.values(notes).find(n => n.id === updatedNote.id)?.zIndex ?? 1
+
+    const noteToSave = bringToFront || currentZIndex < maxZIndex
+      ? { ...updatedNote, zIndex: maxZIndex + 1 }
+      : { ...updatedNote, zIndex: currentZIndex }
+
+    upsertNote(noteToSave)
+    return noteToSave.zIndex
+  }, [maxZIndex, upsertNote, notes])
+
+  // Normalize z-indexes when they get too high
+  useEffect(() => {
+    const Z_INDEX_THRESHOLD = 10000
+    if (maxZIndex >= Z_INDEX_THRESHOLD) {
+      // Normalize all z-indexes
+      const sorted = Object.values(notes).sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
+      sorted.forEach((note, index) => {
+        const targetZ = index + 1
+        // Only broadcast if the zIndex actually changed to save bandwidth
+        if (note.zIndex !== targetZ) {
+          upsertNote({ ...note, zIndex: targetZ })
+        }
+      })
     }
-  }, [maxZIndex, upsertNote])
+  }, [maxZIndex, notes, upsertNote])
 
   const handleAddNote = useCallback(() => {
     const newNote: Note = {

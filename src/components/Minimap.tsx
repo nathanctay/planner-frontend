@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import type { Note } from '../types'
-import { cn } from '../lib/utils'
 
 type MinimapProps = {
     notes: Record<string, Note>
@@ -13,15 +12,13 @@ const PADDING = 20 // Padding around notes in minimap
 
 export function Minimap({ notes, boardRef, onPanTo }: MinimapProps) {
     const minimapRef = useRef<HTMLDivElement>(null)
-    const [bounds, setBounds] = useState({ minX: 0, minY: 0, maxX: 1000, maxY: 1000 })
     const [viewport, setViewport] = useState({ x: 0, y: 0, width: 0, height: 0 })
 
-    // Calculate bounds based on note positions
-    useEffect(() => {
+    // Calculate bounds based on note positions - use useMemo instead of useState + useEffect
+    const bounds = useMemo(() => {
         const noteArray = Object.values(notes)
         if (noteArray.length === 0) {
-            setBounds({ minX: 0, minY: 0, maxX: 1000, maxY: 1000 })
-            return
+            return { minX: 0, minY: 0, maxX: 1000, maxY: 1000 }
         }
 
         let minX = Infinity
@@ -46,7 +43,7 @@ export function Minimap({ notes, boardRef, onPanTo }: MinimapProps) {
         const width = Math.max(1000, maxX - minX)
         const height = Math.max(1000, maxY - minY)
 
-        setBounds({ minX, minY, maxX: minX + width, maxY: minY + height })
+        return { minX, minY, maxX: minX + width, maxY: minY + height }
     }, [notes])
 
     // Track viewport position

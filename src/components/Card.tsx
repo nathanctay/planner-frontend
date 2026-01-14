@@ -6,7 +6,7 @@ import { cn } from "../lib/utils"
 
 type CardProps = {
     note: Note;
-    onUpdate: (note: Note) => void;
+    onUpdate: (note: Note, bringToFront?: boolean) => number;
     onDelete: (id: string) => void;
 }
 
@@ -36,8 +36,19 @@ function Card({ note, onUpdate, onDelete }: CardProps) {
 
     const latestNoteRef = useRef(note)
 
-    // Sync ref every render
-    latestNoteRef.current = note
+    // Track the confirmed zIndex independently - this is our source of truth
+    const confirmedZIndexRef = useRef(note.zIndex || 1)
+
+    // Update confirmed zIndex only when we get a valid value from props
+    useEffect(() => {
+        if (note.zIndex != null && note.zIndex > 0) {
+            // Only update if the new zIndex is higher (never decrease)
+            confirmedZIndexRef.current = Math.max(confirmedZIndexRef.current, note.zIndex)
+        }
+    }, [note.zIndex])
+
+    // Sync ref every render with CONFIRMED zIndex, not prop zIndex
+    latestNoteRef.current = { ...note, zIndex: confirmedZIndexRef.current }
 
     // Correct Prop-to-State sync pattern
     useEffect(() => {
@@ -51,7 +62,14 @@ function Card({ note, onUpdate, onDelete }: CardProps) {
             clearTimeout(debounceTimer.current)
         }
         debounceTimer.current = setTimeout(() => {
-            onUpdate({ ...latestNoteRef.current, ...updates })
+            // Always include current confirmed zIndex to prevent it from being lost
+            const noteToUpdate = {
+                ...latestNoteRef.current,
+                zIndex: confirmedZIndexRef.current,
+                ...updates
+            }
+            const newZIndex = onUpdate(noteToUpdate, false)
+            confirmedZIndexRef.current = newZIndex
             debounceTimer.current = null
         }, 300)
     }
@@ -72,7 +90,15 @@ function Card({ note, onUpdate, onDelete }: CardProps) {
 
                     if (debounceTimer.current) clearTimeout(debounceTimer.current)
                     debounceTimer.current = setTimeout(() => {
-                        onUpdate({ ...latestNoteRef.current, w: constrainedWidth, h: constrainedHeight })
+                        // Always include current confirmed zIndex to prevent it from being lost
+                        const noteToUpdate = {
+                            ...latestNoteRef.current,
+                            zIndex: confirmedZIndexRef.current,
+                            w: constrainedWidth,
+                            h: constrainedHeight
+                        }
+                        const newZIndex = onUpdate(noteToUpdate, false)
+                        confirmedZIndexRef.current = newZIndex
                         debounceTimer.current = null
                     }, 200)
                 }
@@ -115,13 +141,22 @@ function Card({ note, onUpdate, onDelete }: CardProps) {
             dragElastic={0}
             initial={{ x: note.x, y: note.y }}
             animate={{ x: note.x, y: note.y }}
-            onDragStart={() => onUpdate({ ...latestNoteRef.current })} // Pop to front on drag start
+            onDragStart={() => {
+                const newZIndex = onUpdate({ ...latestNoteRef.current }, true)
+                confirmedZIndexRef.current = newZIndex
+            }}
             onDragEnd={(_, info) => {
                 // Ensure notes can't go to negative positions (prevent going above board area)
                 // The board container has overflow-hidden, so cards beyond bounds will be clipped
                 const newX = Math.max(0, latestNoteRef.current.x + info.offset.x)
                 const newY = Math.max(0, latestNoteRef.current.y + info.offset.y)
-                onUpdate({ ...latestNoteRef.current, x: newX, y: newY })
+                const newZIndex = onUpdate({
+                    ...latestNoteRef.current,
+                    x: newX,
+                    y: newY,
+                    zIndex: confirmedZIndexRef.current
+                }, false)
+                confirmedZIndexRef.current = newZIndex
             }}
             whileDrag={{ scale: 1.02, zIndex: 1000000 }}
             style={{
@@ -139,7 +174,8 @@ function Card({ note, onUpdate, onDelete }: CardProps) {
 
             <div
                 onPointerDown={(e) => {
-                    onUpdate({ ...latestNoteRef.current }) // Pop to front
+                    const newZIndex = onUpdate({ ...latestNoteRef.current }, true) // Pop to front
+                    confirmedZIndexRef.current = newZIndex
                     dragControls.start(e)
                 }}
                 className="
@@ -177,7 +213,10 @@ function Card({ note, onUpdate, onDelete }: CardProps) {
 
             <div
                 className="flex-auto p-4 overflow-y-auto min-h-0"
-                onPointerDown={() => onUpdate({ ...latestNoteRef.current })} // Pop to front
+                onPointerDown={() => {
+                    const newZIndex = onUpdate({ ...latestNoteRef.current }, true) // Pop to front
+                    confirmedZIndexRef.current = newZIndex
+                }}
             >
                 <textarea
                     value={content}
@@ -201,13 +240,17 @@ function Card({ note, onUpdate, onDelete }: CardProps) {
                 className="px-4 pb-2 flex gap-1 flex-wrap"
                 onPointerDown={(e) => {
                     e.stopPropagation()
-                    onUpdate({ ...latestNoteRef.current }) // Pop to front
+                    const newZIndex = onUpdate({ ...latestNoteRef.current }, true) // Pop to front
+                    confirmedZIndexRef.current = newZIndex
                 }}
             >
                 {colors.map((c) => (
                     <button
                         key={c}
-                        onClick={() => onUpdate({ ...latestNoteRef.current, style: c })}
+                        onClick={() => {
+                            const newZIndex = onUpdate({ ...latestNoteRef.current, style: c }, false)
+                            confirmedZIndexRef.current = newZIndex
+                        }}
                         className={cn(
                             "w-4 h-4 rounded-full border border-black/20 transition-transform hover:scale-110 cursor-pointer",
                             styleClasses[c],

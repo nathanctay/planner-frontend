@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Note, WSMessage } from '../types'
 
+// Backend may send snake_case z_index, we normalize to camelCase zIndex
+type BackendNote = Note & { z_index?: number }
+
 const MAX_RECONNECT_ATTEMPTS = 10
 const INITIAL_RECONNECT_DELAY = 1000
 
@@ -46,16 +49,59 @@ export function useSyncNotes(url: string) {
                             console.error("Invalid init message: notes must be an array")
                             return
                         }
-                        const noteMap = msg.notes.reduce<Record<string, Note>>((acc, n) => {
+                        const noteMap = msg.notes.reduce<Record<string, Note>>((acc, n, index) => {
                             if (n && n.id) {
-                                acc[n.id] = n
+                                const backendNote = n as BackendNote
+                                // Backend might use snake_case (z_index) or camelCase (zIndex)
+                                const backendZIndex = backendNote.zIndex ?? backendNote.z_index
+                                // Ensure all notes have a zIndex (use provided or default to index + 1)
+                                const normalizedNote: Note = {
+                                    id: backendNote.id,
+                                    x: backendNote.x,
+                                    y: backendNote.y,
+                                    w: backendNote.w,
+                                    h: backendNote.h,
+                                    style: backendNote.style,
+                                    header: backendNote.header,
+                                    content: backendNote.content,
+                                    zIndex: backendZIndex ?? index + 1
+                                }
+                                acc[n.id] = normalizedNote
                             }
                             return acc
                         }, {})
                         setNotes(noteMap)
                     } else if (msg.type === 'update') {
                         if (msg.note && msg.note.id) {
-                            setNotes(prev => ({ ...prev, [msg.note.id]: msg.note }))
+                            setNotes(prev => {
+                                const existingZIndex = prev[msg.note.id]?.zIndex
+                                const backendNote = msg.note as BackendNote
+                                // Backend might use snake_case (z_index) or camelCase (zIndex)
+                                const backendZIndex = backendNote.zIndex ?? backendNote.z_index
+
+                                // ALWAYS use the highest zIndex - never decrease
+                                const finalZIndex = (backendZIndex != null && backendZIndex > 0)
+                                    ? Math.max(backendZIndex, existingZIndex ?? 0)
+                                    : (existingZIndex ?? 1)
+
+                                // Normalize to camelCase and ensure zIndex is always present
+                                const normalizedNote: Note = {
+                                    id: backendNote.id,
+                                    x: backendNote.x,
+                                    y: backendNote.y,
+                                    w: backendNote.w,
+                                    h: backendNote.h,
+                                    style: backendNote.style,
+                                    header: backendNote.header,
+                                    content: backendNote.content,
+                                    zIndex: finalZIndex
+                                }
+
+                                return {
+                                    ...prev,
+                                    [msg.note.id]: normalizedNote
+                                }
+                            })
                         }
                     } else if (msg.type === 'delete') {
                         if (msg.id) {
@@ -111,18 +157,31 @@ export function useSyncNotes(url: string) {
     }, [connect])
 
     const upsertNote = useCallback((note: Note) => {
-        setNotes(prev => ({ ...prev, [note.id]: note }))
-        const payload = JSON.stringify({ type: 'update', note })
-        if (socketRef.current?.readyState === WebSocket.OPEN) {
-            socketRef.current.send(payload)
-        } else {
-            // Prevent queue from growing unbounded
-            if (messageQueue.current.length >= MAX_QUEUE_SIZE) {
-                console.warn('Message queue full, dropping oldest message')
-                messageQueue.current.shift()
+        setNotes(prev => {
+            const existingZIndex = prev[note.id]?.zIndex
+            // Use note's zIndex if valid, otherwise use existing, fallback to 1
+            const finalZIndex = (note.zIndex != null && note.zIndex > 0)
+                ? note.zIndex
+                : (existingZIndex ?? 1)
+
+            const noteToSave = { ...note, zIndex: finalZIndex }
+
+            // Send to backend - ALWAYS include zIndex
+            const payload = JSON.stringify({ type: 'update', note: noteToSave })
+
+            if (socketRef.current?.readyState === WebSocket.OPEN) {
+                socketRef.current.send(payload)
+            } else {
+                // Prevent queue from growing unbounded
+                if (messageQueue.current.length >= MAX_QUEUE_SIZE) {
+                    console.warn('Message queue full, dropping oldest message')
+                    messageQueue.current.shift()
+                }
+                messageQueue.current.push(payload)
             }
-            messageQueue.current.push(payload)
-        }
+
+            return { ...prev, [note.id]: noteToSave }
+        })
     }, [])
 
     const deleteNote = useCallback((id: string) => {
