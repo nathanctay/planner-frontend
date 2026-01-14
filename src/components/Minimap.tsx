@@ -1,5 +1,21 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
-import type { Note } from '../types'
+import type { Note, CardStyle } from '../types'
+
+const minimapColors: Record<CardStyle, string> = {
+    blue: "bg-blue-500/60",
+    indigo: "bg-indigo-500/60",
+    purple: "bg-purple-500/60",
+    pink: "bg-pink-500/60",
+    red: "bg-red-500/60",
+    orange: "bg-orange-500/60",
+    yellow: "bg-yellow-400/70",
+    green: "bg-green-500/60",
+    teal: "bg-teal-500/60",
+    cyan: "bg-cyan-500/60",
+    white: "bg-gray-200/80",
+    gray: "bg-gray-500/60",
+    "gray-dark": "bg-gray-700/70",
+}
 
 type MinimapProps = {
     notes: Record<string, Note>
@@ -142,7 +158,7 @@ export function Minimap({ notes, boardRef, onPanTo }: MinimapProps) {
                 return (
                     <div
                         key={note.id}
-                        className="absolute border border-gray-400 bg-blue-500/30"
+                        className={`absolute border border-black/20 ${minimapColors[note.style]}`}
                         style={{
                             left: `${x}px`,
                             top: `${y}px`,
