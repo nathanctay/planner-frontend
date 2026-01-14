@@ -1,0 +1,13 @@
+name = "nathans-board"
+compatibility_date = "2025-01-14"
+pages_build_output_dir = "dist"
+
+# Environment variables for production
+# Set VITE_WS_URL in Cloudflare Pages dashboard under Settings > Environment variables
+# Example: wss://your-backend.example.com/ws
+
+[env.preview]
+name = "nathans-board-preview"
+
+[env.production]
+name = "nathans-board"
