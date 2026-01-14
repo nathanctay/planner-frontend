@@ -2,7 +2,7 @@
 
 Nathan’s Board is a real-time sticky-note whiteboard. Create notes, drag and resize them, change colors, and keep everything synced across tabs/devices via WebSockets.
 
-- **Live site**: `nathanswhiteboard.com`
+- **Live site**: [nathanswhiteboard.com](https://nathanswhiteboard.com)
 
 ## Features
 
