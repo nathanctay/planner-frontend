@@ -136,8 +136,8 @@ export function Minimap({ notes, boardRef, onPanTo }: MinimapProps) {
         <div
             ref={minimapRef}
             onClick={handleClick}
-            className="absolute bottom-4 right-4 w-[200px] h-[200px] bg-white/90 backdrop-blur-sm border-2 border-gray-300 rounded-lg shadow-lg cursor-pointer z-50 overflow-hidden"
-            style={{ minWidth: MINIMAP_SIZE, minHeight: MINIMAP_SIZE }}
+            className="absolute bottom-4 right-4 w-[200px] h-[200px] bg-white/90 backdrop-blur-sm border-2 border-gray-300 rounded-lg shadow-lg cursor-pointer overflow-hidden"
+            style={{ minWidth: MINIMAP_SIZE, minHeight: MINIMAP_SIZE, zIndex: 1000001 }}
         >
             {/* Background grid */}
             <div
